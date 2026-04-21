@@ -18,11 +18,12 @@ use Override;
 use Symfony\Component\HttpFoundation\InputBag;
 
 use function date;
+use function _;
 
 /**
  * Make a CSV file with all the compounds
  */
-final class MakeCompoundsReport extends AbstractMakeCsv
+class MakeCompoundsReport extends AbstractMakeCsv
 {
     public function __construct(protected Compounds $compounds)
     {

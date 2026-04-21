@@ -28,6 +28,11 @@ use OneLogin\Saml2\Settings as SamlSettings;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
 
+use function _;
+use function session_get_cookie_params;
+use function setcookie;
+use function time;
+
 require_once 'app/init.inc.php';
 
 $Response = new Response();
@@ -40,9 +45,12 @@ try {
         $IdpsHelper = new IdpsHelper($App->Config, new Idps($App->Users));
         $tmpSettings = $IdpsHelper->getSettings(); // get temporary settings to decode message
         $resp = new SamlResponse(new SamlSettings($tmpSettings), $App->Request->request->getString('SAMLResponse'));
-        $entId = $resp->getIssuers()[0]; // getIssuers returns always one or two entity ids
-
-        $settings = $IdpsHelper->getSettingsByEntityId($entId);
+        $issuers = $resp->getIssuers(); // getIssuers returns one or two entity ids as an array
+        if (empty($issuers)) {
+            throw new ImproperActionException('Could not find an Issuer in the response sent by the IdP!');
+        }
+        // use the first issuer found in the response
+        $settings = $IdpsHelper->getSettingsByEntityId($issuers[0]);
         $idpId = $settings['idp_id'];
         $AuthService = new SamlAuth(new SamlAuthLib($settings), $App->Config->configArr, $settings);
 

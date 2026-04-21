@@ -13,6 +13,7 @@ namespace Elabftw\Traits;
 
 use Elabftw\Elabftw\Db;
 use Elabftw\Enums\Action;
+use Elabftw\Models\ItemsTypes;
 use Elabftw\Models\Users\AuthenticatedUser;
 use Elabftw\Models\Experiments;
 use Elabftw\Models\Items;
@@ -21,6 +22,8 @@ use Elabftw\Models\Teams;
 use Elabftw\Models\Templates;
 use Elabftw\Models\Users\Users;
 use PDO;
+
+use function array_rand;
 
 trait TestsUtilsTrait
 {
@@ -109,5 +112,23 @@ trait TestsUtilsTrait
         $id = $Entity->create();
         $Entity->setId($id);
         return $Entity;
+    }
+
+    protected function getFreshItemType(): ItemsTypes
+    {
+        $Entity = new ItemsTypes(new Users(1, 1));
+        $id = $Entity->create();
+        $Entity->setId($id);
+        return $Entity;
+    }
+
+    protected function updateArchiveStatus(int $userid, int $is_archived): void
+    {
+        $Db = Db::getConnection();
+        $sql = 'UPDATE users2teams SET is_archived = :is_archived WHERE users_id = :userid';
+        $req = $Db->prepare($sql);
+        $req->bindParam(':userid', $userid, PDO::PARAM_INT);
+        $req->bindValue(':is_archived', $is_archived, PDO::PARAM_INT);
+        $Db->execute($req);
     }
 }

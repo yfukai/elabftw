@@ -27,6 +27,8 @@ use Elabftw\Services\TeamsHelper;
 use Elabftw\Services\UserArchiver;
 use PDO;
 
+use function count;
+
 /**
  * Manage the link between users and teams
  */
@@ -128,7 +130,7 @@ final class Users2Teams
     {
         $TeamsHelper = new TeamsHelper($teamid);
         if (!(
-            $this->requester->userData['is_sysadmin']
+            $this->requester->isSysadmin()
             || $this->requester->userData['can_manage_users2teams']
             || $TeamsHelper->isAdminInTeam($this->requester->userData['userid'])
         )) {
@@ -153,7 +155,8 @@ final class Users2Teams
         if ($promoteToAdmin
             && (Config::getConfig())->configArr['onboarding_email_active'] === '1'
         ) {
-            (new OnboardingEmail(-1, $promoteToAdmin))->create($userid);
+            $targetUser = new Users($userid);
+            (new OnboardingEmail($targetUser, -1, $promoteToAdmin))->create();
         }
         /** @psalm-suppress PossiblyNullArgument */
         AuditLogs::create(new PermissionLevelChanged($this->requester->userid, $userid, Users2TeamsTargets::IsAdmin, $isAdmin->value, $teamid));
@@ -176,7 +179,7 @@ final class Users2Teams
             return $this->patchIsArchived($userid, $teamid, $content);
         }
         // only sysdamin can do that
-        if ($this->requester->userData['is_sysadmin'] === 0) {
+        if (!$this->requester->isSysadmin()) {
             throw new IllegalActionException('Only a sysadmin can modify is_owner value.');
         }
         $sql = 'UPDATE users2teams SET ' . $what->value . ' = :content WHERE `users_id` = :userid AND `teams_id` = :team';

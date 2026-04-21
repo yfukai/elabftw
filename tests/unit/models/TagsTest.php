@@ -16,6 +16,8 @@ use Elabftw\Exceptions\ImproperActionException;
 use Elabftw\Models\Users\Users;
 use Elabftw\Traits\TestsUtilsTrait;
 
+use function sprintf;
+
 class TagsTest extends \PHPUnit\Framework\TestCase
 {
     use TestsUtilsTrait;
@@ -39,6 +41,9 @@ class TagsTest extends \PHPUnit\Framework\TestCase
     {
         $this->Experiments->Tags->postAction(Action::Create, array('tag' => 'my tag'));
         $id = $this->Experiments->Tags->postAction(Action::Create, array('tag' => 'new tag'));
+        $this->assertIsInt($id);
+        // multi tags
+        $id = $this->Experiments->Tags->postAction(Action::Create, array('tags' => array('tag A', 'tag B')));
         $this->assertIsInt($id);
 
         // no admin user

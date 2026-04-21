@@ -22,8 +22,8 @@ $finder = Finder::create()
 
 return (new Config())
     ->setRules(array(
-        '@PER-CS2.0' => true,
-        '@PHP83Migration' => true,
+        '@PER-CS2x0' => true,
+        '@PHP8x3Migration' => true,
         'array_syntax' => ['syntax' => 'long'],
         'class_attributes_separation' => true,
         'declare_strict_types' => true,
@@ -60,6 +60,11 @@ return (new Config())
             'import_classes' => true,
             'import_functions' => true,
             'import_constants' => true,
+        ],
+        'native_function_invocation' => [
+            'include' => ['@internal'],
+            'scope' => 'namespaced',
+            'strict' => true,
         ],
     ))
     ->setFinder($finder)

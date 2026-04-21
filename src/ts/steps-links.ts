@@ -24,6 +24,8 @@ import { ApiC } from './api';
 import { entity } from './getEntity';
 import { on } from './handlers';
 
+addAutocompleteToLinkInputs();
+
 // FINISH: outside if stepsDiv because can be from Todolist panel
 $(document).on('click', 'input[type=checkbox].stepbox', function(e) {
   // ask for confirmation before un-finishing a step
@@ -99,6 +101,10 @@ if (document.getElementById('stepsDiv')) {
     }
   });
 
+  on('toggle-all-immutable', (el: HTMLInputElement) => {
+    ApiC.patch(`${entity.type}/${entity.id}/steps`, {action: el.checked ? Action.ForceLock : Action.ForceUnlock}).then(() => reloadElements(['stepsDiv']));
+  });
+
   on('import-links', (el: HTMLElement) => {
     Promise.allSettled(['items_links', 'experiments_links'].map(endpoint => ApiC.post(
       `${entity.type}/${entity.id}/${endpoint}/${el.dataset.target}`,
@@ -172,6 +178,5 @@ if (document.getElementById('stepsDiv')) {
     }
   });
   // AUTOCOMPLETE
-  addAutocompleteToLinkInputs();
   addAutocompleteToCompoundsInputs();
 }

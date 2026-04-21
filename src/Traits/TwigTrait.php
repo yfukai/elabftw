@@ -12,7 +12,7 @@ declare(strict_types=1);
 
 namespace Elabftw\Traits;
 
-use Elabftw\Elabftw\App;
+use Elabftw\Elabftw\BuildInfo;
 use Elabftw\Elabftw\FsTools;
 use jblond\TwigTrans\Translation;
 use Twig\Environment;
@@ -65,11 +65,8 @@ trait TwigTrait
             array('needs_context' => true)
         );
         $toDatetimeFilter = new TwigFilter('toDatetime', '\Elabftw\Elabftw\TwigFunctions::toDatetime', $filterOptions);
-        $extractJson = new TwigFilter('extractJson', '\Elabftw\Elabftw\TwigFunctions::extractJson', $filterOptions);
-        $extractDisplayMainText = new TwigFilter('extractDisplayMainText', '\Elabftw\Elabftw\TwigFunctions::extractDisplayMainText', $filterOptions);
         $isInJsonArray = new TwigFilter('isInJsonArray', '\Elabftw\Elabftw\TwigFunctions::isInJsonArray', $filterOptions);
         $canToHuman = new TwigFilter('canToHuman', '\Elabftw\Elabftw\TwigFunctions::canToHuman', $filterOptions);
-        $decrypt = new TwigFilter('decrypt', '\Elabftw\Elabftw\TwigFilters::decrypt', $filterOptions);
         $toSymbol = new TwigFilter('toSymbol', '\Elabftw\Elabftw\TwigFilters::toSymbol', $filterOptions);
         $formatMfaSecret = new TwigFilter('formatMfaSecret', '\Elabftw\Elabftw\TwigFilters::formatMfaSecret', $filterOptions);
 
@@ -105,11 +102,8 @@ trait TwigTrait
         $TwigEnvironment->addFilter($any2StringFilter);
         $TwigEnvironment->addFilter($transFilter);
         $TwigEnvironment->addFilter($toDatetimeFilter);
-        $TwigEnvironment->addFilter($extractJson);
-        $TwigEnvironment->addFilter($extractDisplayMainText);
         $TwigEnvironment->addFilter($isInJsonArray);
         $TwigEnvironment->addFilter($canToHuman);
-        $TwigEnvironment->addFilter($decrypt);
         $TwigEnvironment->addFilter($toSymbol);
         $TwigEnvironment->addFilter($formatMfaSecret);
         // functions
@@ -124,8 +118,7 @@ trait TwigTrait
 
         // use the image BUILD_ID to use as parameter for loading assets
         // this helps with busting the cache in browsers
-        $elabimgBuildId = getenv('ELABIMG_BUILD_ID') ?: App::INSTALLED_VERSION;
-        $TwigEnvironment->addGlobal('v', $elabimgBuildId);
+        $TwigEnvironment->addGlobal('v', BuildInfo::ID);
 
         return $TwigEnvironment;
     }

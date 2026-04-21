@@ -13,13 +13,13 @@ declare(strict_types=1);
 namespace Elabftw\Make;
 
 use Elabftw\Elabftw\Tools;
-use Elabftw\Exceptions\IllegalActionException;
 use Elabftw\Models\Users\Users;
 use Elabftw\Services\UsersHelper;
 use PDO;
 use Override;
 
 use function date;
+use function implode;
 
 /**
  * Create a report of usage for users provided in construct
@@ -46,9 +46,7 @@ class MakeReport extends AbstractMakeCsv
 
     protected function canReadOrExplode(): void
     {
-        if (!$this->requester->userData['is_sysadmin']) {
-            throw new IllegalActionException('Non sysadmin user tried to generate report.');
-        }
+        $this->requester->isSysadminOrExplode();
     }
 
     protected function readUsers(): array

@@ -26,6 +26,10 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Override;
 use Throwable;
 
+use function count;
+use function is_array;
+use function sprintf;
+
 /**
  * (Re)calculate fingerprints for stored compounds
  */
@@ -56,7 +60,7 @@ final class FingerprintCompounds extends Command
             return Command::SUCCESS;
         }
         $proxy = Env::asBool('FINGERPRINTER_USE_PROXY') ? Config::getConfig()->configArr['proxy'] : '';
-        $fingerPrinterHttpGetter = new HttpGetter(new Client(), $proxy, Env::asBool('DEV_MODE'));
+        $fingerPrinterHttpGetter = new HttpGetter(new Client(), $proxy, !Env::asBool('DEV_MODE'));
         $Fingerprinter = new Fingerprinter($fingerPrinterHttpGetter, Env::asUrl('FINGERPRINTER_URL'));
         foreach ($compounds as $compound) {
             if (empty($compound['smiles'])) {

@@ -7,16 +7,13 @@
   <li><button type='button' class='btn' data-action='switch-tab' data-tabtarget='3'>{{ 'Procurement requests'|trans }}</button><span class='beta'>beta</span></li>
 </ul>
 
-{# loading spinner #}
-<div class='d-flex justify-content-center' id='loading-spinner'>
-  <div class='lds-dual-ring'></div>
-</div>
+{% include 'loading-spinner.html' %}
 
 {# TAB 1 MEMBERS #}
 <div data-tabcontent='1' hidden>
   <div class='alert alert-success'><i class='fas fa-info-circle fa-fw color-success'></i>
   {{ 'You belong to the %s team.'|trans|format(App.Teams.teamArr.name) }}
-  {{ 'Members'|trans }}: {{ teamsStats.active_users_count }} &ndash; {% trans %}Experiment{% plural teamsStats.totxp %}Experiments{% endtrans %}: {{ teamsStats.totxp }} ({{ teamsStats.totxpts }} timestamped) &ndash; {{ 'Resources'|trans }}: {{ teamsStats.totdb }}
+  {{ 'Members'|trans }}: {{ teamsStats.active_users_count }} &ndash; {% trans %}Experiment{% plural teamsStats.totxp %}Experiments{% endtrans %}: {{ teamsStats.totxp }} ({{ teamsStats.totxpts }} timestamped) &ndash; {% trans %}Resource{% plural teamStats.totdb %}Resources{% endtrans %}: {{ teamsStats.totdb }}
   </div>
 
   <h3 class='p-2 pl-3 mb-3 section-title'>{{ 'Members'|trans }}</h3>
@@ -56,9 +53,7 @@
 {# TAB 2 EMAIL #}
 <div data-tabcontent='2' hidden>
   <h3 class='p-2 pl-3 mb-3 section-title'>{{ 'Send an email to users'|trans }}</h3>
-  <form class='pl-3' method='post' action='app/controllers/TeamController.php' aria-label='{{ 'Mass email form'|trans }}'>
-    {{ App.Session.get('csrf')|csrf }}
-    <input type='hidden' name='emailUsers' />
+  <form class='pl-3' id='emailTeamForm' aria-label='{{ 'Mass email form'|trans }}'>
     <label>{{ 'Send to'|trans }}</label>
     <div class='form-check'>
       <input class='form-check-input' type='radio' name='target' value='team' id='targetTeam' checked> <label class='form-check-label' for='targetTeam'>{{ 'Members of team %s'|trans|format(App.Teams.teamArr.name) }}</label>
@@ -75,7 +70,7 @@
       <textarea id='emailBody' name='body' class='form-control' rows='10' required></textarea>
     </div>
     <div class='mt-4 text-center'>
-      <button type='submit' class='btn btn-primary'>{{ 'Send'|trans }}</button>
+      <button type='submit' class='btn btn-primary' data-action='{{ enum('Elabftw\\Enums\\Action').EmailTeam.value }}'>{{ 'Send'|trans }}</button>
     </div>
   </form>
 </div>
@@ -105,7 +100,7 @@
               <th scope='col'>{{ 'Comment'|trans }}</th>
               <!--th scope='col'>{{ 'Quote'|trans }}</th-->
               <th scope='col'>{{ 'State'|trans }}</th>
-              <th scope='col'>{{ 'Actions'|trans }}</th>
+              <th scope='col'><span class='sr-only'>{{ 'Actions'|trans }}</span></th>
             </tr>
           </thead>
           {# this is the element to reload after a change, don't use the full div so we keep the js working in table headers #}
@@ -135,7 +130,7 @@
                 #}
                 <td data-label='{{ 'State'|trans }}'><span class='hl-hover-gray p-1 rounded malleableState' data-id='{{ req.id }}'>{{ req.state_human }}</span></td>
                 {# delete will actually cancel it #}
-                <td data-label='{{ 'Actions'|trans }}'>
+                <td><span class='sr-only'>{{ 'Actions'|trans }}</span>
                   {% if req.state != enum('Elabftw\\Enums\\ProcurementState').Cancelled.value %}
                     <button class='btn hl-hover-gray p-1 rounded hover-danger lh-normal' title='{{ 'Cancel order'|trans }}' data-action='cancel-procurement-request' aria-label='{{ 'Cancel order'|trans }}' type='button' data-id='{{ req.id }}'>
                       <i class='fas fa-trash-alt'></i>

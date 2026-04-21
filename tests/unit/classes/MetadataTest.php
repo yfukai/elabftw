@@ -12,13 +12,16 @@ declare(strict_types=1);
 
 namespace Elabftw\Elabftw;
 
+use Elabftw\Exceptions\ImproperActionException;
+
+use function count;
+
 class MetadataTest extends \PHPUnit\Framework\TestCase
 {
     public function testNoMetadata(): void
     {
         $metadata = new Metadata(null);
         $this->assertEmpty($metadata->getExtraFields());
-        $this->assertTrue($metadata->getDisplayMainText());
     }
 
     public function testGetRaw(): void
@@ -31,12 +34,6 @@ class MetadataTest extends \PHPUnit\Framework\TestCase
     {
         $metadata = new Metadata('{"extra_fields":{"foo":{"type":"text","value":"bar"}}}');
         $this->assertIsArray($metadata->getExtraFields());
-    }
-
-    public function testGetDisplayMainText(): void
-    {
-        $metadata = new Metadata('{"elabftw": {"display_main_text": false}}');
-        $this->assertFalse($metadata->getDisplayMainText());
     }
 
     public function testGetGroups(): void
@@ -68,5 +65,29 @@ class MetadataTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals($json, (new Metadata($json))->blankExtraFieldsValueOnDuplicate());
 
         $this->assertNull((new Metadata(null))->blankExtraFieldsValueOnDuplicate());
+    }
+
+    public function testGetExtraFieldsThrowsIfIsNotAnArray(): void
+    {
+        $invalidJson = '{"extra_fields": "nope"}';
+        $metadataJson = new Metadata($invalidJson);
+        $this->expectException(ImproperActionException::class);
+        $metadataJson->getExtraFields();
+    }
+
+    public function testGetExtraFieldsThrowsOnInvalidElements(): void
+    {
+        $invalidJson = '{"extra_fields":{"YYYYYYYYY": "","XXXXXXXXXXX": {"type": "text","value": "test","group_id": 1,"position": 1,"required": true}}}';
+        $metadataJson = new Metadata($invalidJson);
+        $this->expectException(ImproperActionException::class);
+        $metadataJson->getExtraFields();
+    }
+
+    public function testBlankValueOnDuplicateExceptionThrowing(): void
+    {
+        $invalidJson = '{"extra_fields":{"YYYYYYYYY": "","XXXXXXXXXXX": {"type": "text","value": "test","group_id": 1,"position": 1,"blank_value_on_duplicate": true}}}';
+        $metadata = new Metadata($invalidJson);
+        $result = $metadata->blankExtraFieldsValueOnDuplicate();
+        $this->assertJsonStringEqualsJsonString($invalidJson, $result);
     }
 }

@@ -14,6 +14,7 @@ namespace Elabftw\Models;
 
 use Elabftw\Enums\Action;
 use Elabftw\Enums\EntityType;
+use Elabftw\Enums\AccessType;
 use Elabftw\Exceptions\ImproperActionException;
 use Elabftw\Interfaces\QueryParamsInterface;
 use Elabftw\Params\TagParam;
@@ -21,6 +22,11 @@ use Elabftw\Services\TeamsHelper;
 use Elabftw\Traits\SetIdTrait;
 use Override;
 use PDO;
+
+use function _;
+use function is_array;
+use function is_string;
+use function sprintf;
 
 /**
  * All about the tag
@@ -45,10 +51,22 @@ final class Tags extends AbstractRest
     public function postAction(Action $action, array $reqBody): int
     {
         // check if we can actually create tags (for non-admins)
-        $teamConfigArr = (new Teams($this->Entity->Users, $this->Entity->Users->team))->readOne();
-        $TeamsHelper = new TeamsHelper($this->Entity->Users->team ?? 0);
+        $teamConfigArr = (new Teams($this->Entity->Users, $this->Entity->Users->getTeam()))->readOne();
+        $TeamsHelper = new TeamsHelper($this->Entity->Users->getTeam());
         $canCreate = $teamConfigArr['user_create_tag'] === 1 || $TeamsHelper->isAdminInTeam($this->Entity->Users->userData['userid']);
-        return $this->create(new TagParam($reqBody['tag'] ?? ''), $canCreate);
+        $tags = array();
+        if (isset($reqBody['tag']) && is_string($reqBody['tag'])) {
+            $tags = array($reqBody['tag']);
+        }
+        if (isset($reqBody['tags']) && is_array($reqBody['tags'])) {
+            $tags = $reqBody['tags'];
+        }
+
+        $id = 0;
+        foreach ($tags as $tag) {
+            $id = $this->create(new TagParam($tag), $canCreate);
+        }
+        return $id;
     }
 
     #[Override]
@@ -128,7 +146,7 @@ final class Tags extends AbstractRest
      */
     public function create(TagParam $params, bool $canCreate): int
     {
-        $this->Entity->canOrExplode('write');
+        $this->Entity->canOrExplode(AccessType::Write);
 
         $TeamTags = new TeamTags($this->Entity->Users);
 
@@ -153,7 +171,7 @@ final class Tags extends AbstractRest
      */
     private function unreference(): array
     {
-        $this->Entity->canOrExplode('write');
+        $this->Entity->canOrExplode(AccessType::Write);
 
         $sql = 'DELETE FROM tags2entity WHERE tag_id = :tag_id AND item_id = :item_id';
         $req = $this->Db->prepare($sql);

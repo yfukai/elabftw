@@ -12,19 +12,23 @@ declare(strict_types=1);
 
 namespace Elabftw\Params;
 
+use Elabftw\Enums\BinaryValue;
 use Elabftw\Exceptions\ImproperActionException;
 use Override;
 
 use function mb_strlen;
 use function str_replace;
+use function _;
+use function sprintf;
 
 final class StepParams extends ContentParams
 {
     #[Override]
-    public function getContent(): ?string
+    public function getContent(): string | int | null
     {
         return match ($this->target) {
             'body' => $this->getStep(),
+            'is_immutable' => BinaryValue::from((int) $this->content)->value,
             'deadline', 'finished_time' => $this->getNullableString(),
             default => throw new ImproperActionException('Incorrect parameter for steps.'),
         };

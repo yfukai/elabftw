@@ -20,6 +20,7 @@ use Elabftw\Enums\PasswordComplexity;
 use Elabftw\Enums\PdfFormat;
 use Elabftw\Enums\Scope;
 use Elabftw\Enums\Sort;
+use Elabftw\Enums\ThemeVariant;
 use Elabftw\Exceptions\ImproperActionException;
 use Elabftw\Models\Config;
 use Elabftw\Services\Check;
@@ -27,8 +28,11 @@ use Elabftw\Services\Filter;
 use Elabftw\Services\PasswordValidator;
 use Override;
 
-use function trim;
 use function mb_substr;
+use function password_hash;
+use function preg_match;
+use function str_replace;
+use function strlen;
 
 final class UserParams extends ContentParams
 {
@@ -37,7 +41,7 @@ final class UserParams extends ContentParams
     {
         return match ($this->target) {
             // checked in update
-            'email' => trim($this->asString()),
+            'email' => Filter::sanitizeEmail($this->asString()),
             'firstname', 'lastname', 'orgid' => $this->content,
             'valid_until' => (
                 function () {
@@ -89,10 +93,12 @@ final class UserParams extends ContentParams
             'use_isodate',
             'use_markdown',
             'validated' => (string) Filter::toBinary($this->content),
+            'theme_variant' => (ThemeVariant::tryFrom($this->asInt()) ?? ThemeVariant::Auto)->value,
             'mfa_secret' => $this->getNullableString(),
             'lang' => (Language::tryFrom($this->content) ?? Language::EnglishGB)->value,
             'entrypoint' => (Entrypoint::tryFrom($this->asInt()) ?? Entrypoint::Dashboard)->value,
             'default_read', 'default_write' => $this->getCanJson(),
+            'default_read_base', 'default_write_base' => $this->getCanBase(),
             'pdf_format' => (PdfFormat::tryFrom($this->content) ?? PdfFormat::A4)->value,
             default => throw new ImproperActionException('Invalid target for user update.'),
         };

@@ -16,7 +16,6 @@ use Elabftw\Enums\Messages;
 use Elabftw\Exceptions\DatabaseErrorException;
 use Elabftw\Exceptions\IllegalActionException;
 use Elabftw\Exceptions\ImproperActionException;
-use Elabftw\Exceptions\QuantumException;
 use Elabftw\Exceptions\ResourceNotFoundException;
 use Elabftw\Models\AuditLogs;
 use Elabftw\Models\Users\ExistingUser;
@@ -34,6 +33,9 @@ use function nl2br;
 use function random_int;
 use function sleep;
 use function time;
+use function _;
+use function filter_var;
+use function sprintf;
 
 require_once dirname(__DIR__) . '/init.inc.php';
 
@@ -45,6 +47,7 @@ try {
         throw new ImproperActionException('This instance has disabled local authentication method, so passwords cannot be reset.');
     }
     $Email = new Email(
+        new SchemaVersionChecker((int) $App->Config->configArr['schema']),
         new Mailer(Transport::fromDsn($App->Config->getDsn())),
         $App->Log,
         $App->Config->configArr['mail_from'],
@@ -67,7 +70,8 @@ try {
         } catch (ResourceNotFoundException $e) {
             // make the response slow to emulate an email being sent if there was an account associated
             sleep(random_int(1, 3));
-            throw new QuantumException(_('If the account exists, an email has been sent.'));
+            $App->Session->getFlashBag()->add('ok', _('If the account exists, an email has been sent.'));
+            return;
         }
 
         // If user is not validated, the password reset form won't work
@@ -101,7 +105,8 @@ try {
         AuditLogs::create(new PasswordResetRequested($email));
         // show the same message as if the email didn't exist in the db
         // this is done to prevent information disclosure
-        throw new QuantumException(_('If the account exists, an email has been sent.'));
+        $App->Session->getFlashBag()->add('ok', _('If the account exists, an email has been sent.'));
+        return;
     }
 
     // PART 2: update the password
@@ -120,8 +125,6 @@ try {
         }
         $App->Session->getFlashBag()->add('ok', _('New password inserted. You can now login.'));
     }
-} catch (QuantumException $e) {
-    $App->Session->getFlashBag()->add('ok', $e->getMessage());
 } catch (IllegalActionException $e) {
     $App->Log->notice('', array(array('userid' => $App->Session->get('userid')), array('IllegalAction', $e)));
     $App->Session->getFlashBag()->add('ko', Messages::InsufficientPermissions->toHuman());

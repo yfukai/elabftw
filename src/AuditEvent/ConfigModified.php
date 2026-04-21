@@ -15,6 +15,9 @@ namespace Elabftw\AuditEvent;
 use Elabftw\Enums\AuditCategory;
 use Override;
 
+use function in_array;
+use function sprintf;
+
 final class ConfigModified extends AbstractAuditEvent
 {
     public function __construct(private string $name, private string $old, private string $new)
@@ -41,6 +44,7 @@ final class ConfigModified extends AbstractAuditEvent
             'smtp_password',
             'ts_password',
             'saml_privatekey',
+            'dspace_password',
             // not sensitive but we don't want to log it in full
             'saml_x509',
             'saml_x509_new',

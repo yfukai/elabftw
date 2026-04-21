@@ -22,6 +22,11 @@ use Elabftw\Services\Check;
 use Symfony\Component\HttpFoundation\InputBag;
 use Override;
 
+use function array_map;
+use function explode;
+use function implode;
+use function sprintf;
+
 /**
  * This class holds the values for limit, offset, order and sort
  */
@@ -31,7 +36,7 @@ class BaseQueryParams implements QueryParamsInterface
         protected ?InputBag $query = null,
         public Orderby $orderby = Orderby::Date,
         public Sort $sort = Sort::Desc,
-        public int $limit = 15,
+        public int $limit = 0,
         public int $offset = 0,
         public array $states = array(State::Normal),
     ) {
@@ -111,14 +116,22 @@ class BaseQueryParams implements QueryParamsInterface
     #[Override]
     public function getSql(): string
     {
-        return sprintf(
-            '%s ORDER BY %s %s LIMIT %d OFFSET %d',
+        $sql = sprintf(
+            '%s ORDER BY %s %s',
             $this->getStatesSql('entity'),
             $this->orderby->toSql(),
             $this->sort->value,
-            $this->limit,
-            $this->offset,
         );
+        if ($this->limit > 0) {
+            $sql .= sprintf(' LIMIT %d OFFSET %d', $this->limit, $this->offset);
+        }
+        return $sql;
+    }
+
+    #[Override]
+    public function getStates(): array
+    {
+        return $this->states;
     }
 
     #[Override]

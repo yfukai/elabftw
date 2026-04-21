@@ -13,11 +13,16 @@ declare(strict_types=1);
 namespace Elabftw\Models;
 
 use Elabftw\Enums\Action;
+use Elabftw\Enums\BasePermissions;
+use Elabftw\Enums\BinaryValue;
 use Elabftw\Enums\BodyContentType;
+use Elabftw\Enums\AccessType;
 use Elabftw\Enums\State;
 use Elabftw\Factories\LinksFactory;
 use Override;
 use PDO;
+
+use function is_int;
 
 /**
  * An entity like Templates or ItemsTypes. Template as opposed to Concrete: Experiments and Items
@@ -44,19 +49,31 @@ abstract class AbstractTemplateEntity extends AbstractEntity
     }
 
     #[Override]
+    public function readOne(): array
+    {
+        $this->entityData = parent::readOne();
+        $this->entityData['canread_target_base_human'] = BasePermissions::from($this->entityData['canread_target_base'])->toHuman();
+        $this->entityData['canwrite_target_base_human'] = BasePermissions::from($this->entityData['canwrite_target_base'])->toHuman();
+        return $this->entityData;
+    }
+
+    #[Override]
     public function duplicate(bool $copyFiles = false, bool $linkToOriginal = false): int
     {
-        $this->canOrExplode('read');
+        $this->canOrExplode(AccessType::Read);
         $title = $this->entityData['title'] . ' I';
         $newId = $this->create(
             title: $title,
             body: $this->entityData['body'],
-            category: $this->entityData['category'],
-            status: $this->entityData['status'],
             canread: $this->entityData['canread'],
             canwrite: $this->entityData['canwrite'],
+            category: $this->entityData['category'],
+            status: $this->entityData['status'],
             metadata: $this->entityData['metadata'],
+            hideMainText: BinaryValue::from($this->entityData['hide_main_text']),
             contentType: BodyContentType::from($this->entityData['content_type']),
+            createdFromType: $this->entityType,
+            createdFromId: $this->id,
         );
         // add missing can*_target
         $fresh = clone $this;

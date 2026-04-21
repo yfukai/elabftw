@@ -13,8 +13,8 @@ namespace Elabftw\Elabftw;
 
 use Elabftw\Controllers\Apiv1Controller;
 use Elabftw\Controllers\Apiv2Controller;
+use Elabftw\Exceptions\AppException;
 use Elabftw\Exceptions\UnauthorizedException;
-use Elabftw\Exceptions\WithMessageException;
 use Elabftw\Models\Users\ActiveUser;
 use Elabftw\Models\ApiKeys;
 use Elabftw\Models\Users\Users;
@@ -22,6 +22,8 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 use function dirname;
+use function str_contains;
+use function str_starts_with;
 
 /**
  * Entrypoint for API requests. Nginx redirects all the /api/vN requests here.
@@ -56,11 +58,11 @@ try {
     }
     $Controller->canWrite = $canWrite;
     $Controller->getResponse()->send();
-} catch (WithMessageException | UnauthorizedException $e) {
+} catch (AppException $e) {
     $error = array(
         'code' => $e->getCode(),
         'message' => $e->getMessage(),
         'description' => $e->getDescription(),
     );
-    (new JsonResponse($error, $error['code']))->send();
+    new JsonResponse($error, $error['code'])->send();
 }

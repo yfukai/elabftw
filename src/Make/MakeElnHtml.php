@@ -15,16 +15,19 @@ namespace Elabftw\Make;
 use Elabftw\Models\Users\Users;
 use ZipStream\ZipStream;
 use Override;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Response;
+
+use function json_encode;
 
 /**
  * Make an ELN html file
  */
 final class MakeElnHtml extends MakeEln
 {
-    public function __construct(protected ZipStream $Zip, protected Users $requester, protected array $entityArr)
+    public function __construct(protected LoggerInterface $logger, protected ZipStream $Zip, protected Users $requester, protected array $entityArr)
     {
-        parent::__construct($Zip, $requester, $entityArr);
+        parent::__construct($logger, $Zip, $requester, $entityArr);
     }
 
     #[Override]

@@ -16,6 +16,7 @@ use Elabftw\Controllers\DownloadController;
 use Elabftw\Elabftw\CreateUpload;
 use Elabftw\Elabftw\CreateUploadFromS3;
 use Elabftw\Elabftw\CreateUploadFromUploadedFile;
+use Elabftw\Enums\AccessType;
 use Elabftw\Hash\ExistingHash;
 use Elabftw\Elabftw\FsTools;
 use Elabftw\Hash\StringHash;
@@ -29,6 +30,7 @@ use Elabftw\Exceptions\ImproperActionException;
 use Elabftw\Factories\MakeThumbnailFactory;
 use Elabftw\Interfaces\CreateUploadParamsInterface;
 use Elabftw\Interfaces\QueryParamsInterface;
+use Elabftw\Params\Guard;
 use Elabftw\Params\UploadParams;
 use Elabftw\Services\Check;
 use ImagickException;
@@ -40,6 +42,20 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
 
 use function mb_substr;
+use function _;
+use function array_map;
+use function base64_decode;
+use function basename;
+use function dirname;
+use function fclose;
+use function fopen;
+use function implode;
+use function rewind;
+use function sprintf;
+use function str_replace;
+use function stream_copy_to_stream;
+use function stream_get_meta_data;
+use function strpos;
 
 /**
  * All about the file uploads
@@ -66,10 +82,10 @@ final class Uploads extends AbstractRest
     public function create(CreateUploadParamsInterface $params, bool $isTimestamp = false): int
     {
         // by default we need write access to an entity to upload files
-        $rw = 'write';
+        $rw = AccessType::Write;
         // but timestamping/sign only needs read access
         if ($isTimestamp) {
-            $rw = 'read';
+            $rw = AccessType::Read;
         }
         $this->Entity->canOrExplode($rw);
 
@@ -78,7 +94,7 @@ final class Uploads extends AbstractRest
         $ext = $this->getExtensionOrExplode($realName);
 
         // name for the stored file, includes folder and extension (ab/ab34[...].ext)
-        $someRandomString = FsTools::getUniqueString();
+        $someRandomString = Tools::getUuidv4();
         $folder = mb_substr($someRandomString, 0, 2);
         $longName = sprintf('%s/%s.%s', $folder, $someRandomString, $ext);
 
@@ -91,6 +107,24 @@ final class Uploads extends AbstractRest
 
         $tmpFilename = $params->getTmpFilePath();
         $filesize = $sourceFs->filesize($tmpFilename);
+        // read the file as a stream
+        $inputStream = $sourceFs->readStream($tmpFilename);
+        // get metadata about the stream to see if it's seekable
+        $meta = stream_get_meta_data($inputStream);
+        if (empty($meta['seekable'])) {
+            // make a seekable temp stream
+            $tmp = fopen('php://temp', 'w+b');
+            if ($tmp === false) {
+                throw new RuntimeException('Could not create temporary seekable stream.');
+            }
+            stream_copy_to_stream($inputStream, $tmp);
+            fclose($inputStream);
+            $inputStream = $tmp;
+        }
+        $isRewind = rewind($inputStream);
+        if ($isRewind === false) {
+            throw new RuntimeException('Could not rewind stream.');
+        }
         // we don't hash big files as this could take too much time/resources
         // same with thumbnails
         // TODO add the filesize check inside the makethumnailclass like we did for hasher
@@ -100,7 +134,7 @@ final class Uploads extends AbstractRest
             try {
                 MakeThumbnailFactory::getMaker(
                     $sourceFs->mimeType($tmpFilename),
-                    $params->getFilePath(),
+                    $inputStream,
                     $longName,
                     $storageFs,
                 )->saveThumb();
@@ -109,11 +143,15 @@ final class Uploads extends AbstractRest
                 // if imagick/imagemagick causes problems ignore it and upload file without thumbnail
             }
         }
-        // read the file as a stream so we can copy it
-        $inputStream = $sourceFs->readStream($tmpFilename);
 
+        // actual writing of the file in its destination, after rewinding file
+        $isRewind = rewind($inputStream);
+        if ($isRewind === false) {
+            throw new RuntimeException('Could not rewind stream.');
+        }
         $storageFs->createDirectory($folder);
         $storageFs->writeStream($longName, $inputStream);
+        fclose($inputStream);
 
         $this->Entity->touch();
 
@@ -167,13 +205,25 @@ final class Uploads extends AbstractRest
     // entity is target entity
     public function duplicate(AbstractEntity $entity): void
     {
-        $uploads = $this->readAll();
+        $uploads = $this->selectAll(array(State::Normal));
         foreach ($uploads as $upload) {
             if ($upload['storage'] === Storage::LOCAL->value) {
                 $prefix = '/elabftw/uploads/';
-                $param = new CreateUpload($upload['real_name'], $prefix . $upload['long_name'], new ExistingHash($upload['hash']), $upload['comment']);
+                $param = new CreateUpload(
+                    realName: $upload['real_name'],
+                    filePath: $prefix . $upload['long_name'],
+                    hasher: new ExistingHash($upload['hash']),
+                    comment: $upload['comment'],
+                    state: State::from($upload['state']),
+                );
             } else {
-                $param = new CreateUploadFromS3($upload['real_name'], $upload['long_name'], new ExistingHash($upload['hash']), $upload['comment']);
+                $param = new CreateUploadFromS3(
+                    realName: $upload['real_name'],
+                    filePath: $upload['long_name'],
+                    hasher: new ExistingHash($upload['hash']),
+                    comment: $upload['comment'],
+                    state: State::from($upload['state']),
+                );
             }
             $id = $entity->Uploads->create($param);
             $fresh = new self($entity, $id);
@@ -228,15 +278,11 @@ final class Uploads extends AbstractRest
         return $DownloadController->getResponse();
     }
 
-    /**
-     * Read all uploads except deleted ones.
-     * Includes 'archived' only if set in queryParams.
-     */
-    #[Override]
-    public function readAll(?QueryParamsInterface $queryParams = null): array
+    public function selectAll(?array $states = null): array
     {
-        $queryParams ??= $this->getQueryParams();
-        $statesSql = $queryParams->getStatesSql('uploads');
+        // if no states array is provided, select all
+        $states ??= array(State::Normal, State::Archived, State::Deleted);
+        $statesSql = sprintf(' AND uploads.state IN (%s)', implode(', ', array_map(fn($state) => $state->value, $states)));
         $sql = sprintf(
             'SELECT uploads.*, CONCAT (users.firstname, " ", users.lastname) AS fullname
             FROM uploads LEFT JOIN users ON (uploads.userid = users.userid)
@@ -249,6 +295,16 @@ final class Uploads extends AbstractRest
         $this->Db->execute($req);
 
         return $req->fetchAll();
+    }
+
+    /**
+     * Public api for GET all uploads for the current entity
+     */
+    #[Override]
+    public function readAll(?QueryParamsInterface $queryParams = null): array
+    {
+        $queryParams ??= $this->getQueryParams();
+        return $this->selectAll($queryParams->getStates());
     }
 
     #[Override]
@@ -273,15 +329,13 @@ final class Uploads extends AbstractRest
         if ($this->id !== null) {
             $action = Action::Replace;
         }
-        if (empty($reqBody['real_name'])) {
-            throw new ImproperActionException('Cannot create an upload with an empty real_name value.');
-        }
+        $realName = Guard::getNonEmptyStringValueOfRequiredParam('real_name', $reqBody);
         return match ($action) {
             Action::Create => $this->create(
-                new CreateUploadFromUploadedFile(new UploadedFile($reqBody['filePath'], $reqBody['real_name']), $reqBody['comment'])
+                new CreateUploadFromUploadedFile(new UploadedFile($reqBody['filePath'], $realName), $reqBody['comment'])
             ),
             Action::CreateFromString => (
-                function () use ($reqBody) {
+                function () use ($reqBody, $realName) {
                     $fileType = FileFromString::tryFrom($reqBody['file_type']);
                     if ($fileType === null) {
                         throw new ImproperActionException(sprintf('Invalid file_type parameter. Valid values are: %s.', FileFromString::toCsList()));
@@ -289,11 +343,12 @@ final class Uploads extends AbstractRest
                     if (empty($reqBody['content'])) {
                         throw new ImproperActionException('Cannot create file from string with empty content!');
                     }
-                    return $this->createFromString($fileType, $reqBody['real_name'], $reqBody['content']);
+                    return $this->createFromString($fileType, $realName, $reqBody['content']);
                 }
             )(),
             Action::Replace => $this->replace(new CreateUploadFromUploadedFile(
-                new UploadedFile($reqBody['filePath'], $reqBody['real_name'], $this->uploadData['comment'])
+                new UploadedFile($reqBody['filePath'], $realName),
+                $this->uploadData['comment']
             )),
             default => throw new ImproperActionException('Invalid action for upload creation.'),
         };
@@ -331,18 +386,30 @@ final class Uploads extends AbstractRest
     }
 
     /**
-     * Delete all uploaded files for an entity
+     * Soft delete all uploaded files for an entity
      */
     public function destroyAll(): bool
     {
-        // this will include the archived/deleted ones
-        $uploadArr = $this->readAll();
+        $sql = 'UPDATE uploads SET state = :state_deleted WHERE item_id = :id AND type = :type';
+        $req = $this->Db->prepare($sql);
+        $req->bindValue(':id', $this->Entity->id);
+        $req->bindValue(':type', $this->Entity->entityType->value);
+        $req->bindValue(':state_deleted', State::Deleted->value);
+        return $this->Db->execute($req);
+    }
 
-        foreach ($uploadArr as $upload) {
-            $this->setId($upload['id']);
-            $this->nuke();
-        }
-        return true;
+    /**
+     * Restore all uploaded files to normal state for an entity (excluding archived to keep consistency)
+     */
+    public function restoreAll(): bool
+    {
+        $sql = 'UPDATE uploads SET state = :state_normal WHERE item_id = :id AND type = :type AND state != :state_archived';
+        $req = $this->Db->prepare($sql);
+        $req->bindValue(':id', $this->Entity->id);
+        $req->bindValue(':type', $this->Entity->entityType->value);
+        $req->bindValue(':state_normal', State::Normal->value);
+        $req->bindValue(':state_archived', State::Archived->value);
+        return $this->Db->execute($req);
     }
 
     public function getStorageFromLongname(string $longname): int
@@ -386,6 +453,17 @@ final class Uploads extends AbstractRest
         return $this->create($params);
     }
 
+    // transfer ownership of all uploaded files for an entity, except immutable ones
+    public function transferOwnership(int $userid): bool
+    {
+        $sql = 'UPDATE uploads SET userid = :userid WHERE item_id = :item_id AND type = :type';
+        $req = $this->Db->prepare($sql);
+        $req->bindValue(':userid', $userid);
+        $req->bindParam(':item_id', $this->Entity->id, PDO::PARAM_INT);
+        $req->bindValue(':type', $this->Entity->entityType->value);
+        return $this->Db->execute($req);
+    }
+
     private function update(UploadParams $params): bool
     {
         $sql = 'UPDATE uploads SET ' . $params->getColumn() . ' = :content WHERE id = :id';
@@ -413,7 +491,7 @@ final class Uploads extends AbstractRest
         if ($this->uploadData['immutable'] === 1) {
             throw new IllegalActionException('User tried to edit an immutable upload.');
         }
-        $this->Entity->canOrExplode('write');
+        $this->Entity->canOrExplode(AccessType::Write);
     }
 
     private function archive(): array

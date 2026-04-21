@@ -18,6 +18,7 @@ use Elabftw\Models\Users\Users;
 use PDO;
 
 use function array_column;
+use function sprintf;
 
 /**
  * When we want to check for something.
@@ -34,7 +35,8 @@ class UsersHelper
 
     public function cannotBeDeleted(): bool
     {
-        return $this->hasExperiments() || $this->hasItems() || $this->isSysadmin() || $this->hasComments() || $this->hasTemplates() || $this->hasUploads();
+        $Users = new Users($this->userid);
+        return $this->hasExperiments() || $this->hasItems() || $Users->isSysadmin() || $this->hasComments() || $this->hasTemplates() || $this->hasUploads();
     }
 
     /**
@@ -157,11 +159,5 @@ class UsersHelper
     private function hasUploads(): bool
     {
         return $this->countTable('uploads') > 0;
-    }
-
-    private function isSysadmin(): bool
-    {
-        $Users = new Users($this->userid);
-        return $Users->userData['is_sysadmin'] === 1;
     }
 }

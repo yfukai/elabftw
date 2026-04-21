@@ -15,7 +15,7 @@ namespace Elabftw\Models;
 use Elabftw\AuditEvent\ApiKeyCreated;
 use Elabftw\AuditEvent\ApiKeyDeleted;
 use Elabftw\Enums\Action;
-use Elabftw\Exceptions\WithMessageException;
+use Elabftw\Exceptions\UnauthorizedException;
 use Elabftw\Interfaces\QueryParamsInterface;
 use Elabftw\Models\Users\Users;
 use Elabftw\Services\Filter;
@@ -27,6 +27,10 @@ use function bin2hex;
 use function password_hash;
 use function password_verify;
 use function random_bytes;
+use function _;
+use function explode;
+use function sprintf;
+use function str_contains;
 
 /**
  * Api keys CRUD class
@@ -114,7 +118,7 @@ final class ApiKeys extends AbstractRest
                 return $key;
             }
         }
-        throw new WithMessageException(_('Unauthorized'), 401, description: _('No corresponding API key found!'));
+        throw new UnauthorizedException(description: _('No corresponding API key found!'));
     }
 
     #[Override]
@@ -123,10 +127,10 @@ final class ApiKeys extends AbstractRest
         $sql = 'DELETE FROM api_keys WHERE id = :id AND userid = :userid';
         $req = $this->Db->prepare($sql);
         $req->bindValue(':id', $this->id, PDO::PARAM_INT);
-        $req->bindValue(':userid', $this->Users->requester->userid ?? 0, PDO::PARAM_INT);
+        $req->bindValue(':userid', $this->Users->requester->getUserid(), PDO::PARAM_INT);
 
         if ($res = $this->Db->execute($req)) {
-            AuditLogs::create(new ApiKeyDeleted($this->Users->requester->userid ?? 0, $this->Users->userid ?? 0));
+            AuditLogs::create(new ApiKeyDeleted($this->Users->requester->getUserid(), $this->Users->getUserid()));
         }
         return $res;
     }
@@ -142,7 +146,7 @@ final class ApiKeys extends AbstractRest
         $req->bindValue(':userid', $this->Users->requester->userid ?? 0, PDO::PARAM_INT);
 
         if ($res = $this->Db->execute($req)) {
-            AuditLogs::create(new ApiKeyDeleted($this->Users->requester->userid ?? 0, $this->Users->userid ?? 0));
+            AuditLogs::create(new ApiKeyDeleted($this->Users->requester->getUserid(), $this->Users->getUserid()));
         }
         return $res;
     }

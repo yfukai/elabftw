@@ -34,6 +34,14 @@ use function array_merge;
 use function bin2hex;
 use function random_bytes;
 use function ucfirst;
+use function array_column;
+use function array_push;
+use function array_unique;
+use function htmlspecialchars;
+use function implode;
+use function in_array;
+use function json_encode;
+use function sprintf;
 
 /** @psalm-suppress UnusedParam */
 final class QueryBuilderVisitor implements Visitor
@@ -47,11 +55,13 @@ final class QueryBuilderVisitor implements Visitor
     public function visitSimpleValueWrapper(SimpleValueWrapper $simpleValueWrapper, VisitorParameters $parameters): WhereCollector
     {
         $param = $this->getUniqueID();
+        $paramCustomId = $this->getUniqueID();
         $paramBody = $this->getUniqueID();
         $query = sprintf(
             '(entity.title LIKE %1$s
                 OR entity.date LIKE %1$s
                 OR entity.elabid LIKE %1$s
+                OR entity.custom_id = %3$s
                 OR compounds.cas_number LIKE %1$s
                 OR compounds.ec_number LIKE %1$s
                 OR compounds.name LIKE %1$s
@@ -61,6 +71,7 @@ final class QueryBuilderVisitor implements Visitor
                 OR entity.body LIKE %2$s)',
             $param,
             $paramBody,
+            $paramCustomId,
         );
 
         $bindValues = array();
@@ -73,6 +84,11 @@ final class QueryBuilderVisitor implements Visitor
         $bindValues[] = array(
             'param' => $paramBody,
             'value' => '%' . htmlspecialchars($simpleValueWrapper->getValue(), ENT_NOQUOTES | ENT_SUBSTITUTE | ENT_HTML401) . '%',
+        );
+        $bindValues[] = array(
+            'param' => $paramCustomId,
+            'value' => $simpleValueWrapper->getValue(),
+            'type' => PDO::PARAM_INT,
         );
 
         return new WhereCollector($query, $bindValues);

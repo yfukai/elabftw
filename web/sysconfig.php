@@ -17,7 +17,6 @@ use Elabftw\Enums\BasePermissions;
 use Elabftw\Enums\EnforceMfa;
 use Elabftw\Enums\PasswordComplexity;
 use Elabftw\Exceptions\AppException;
-use Elabftw\Exceptions\IllegalActionException;
 use Elabftw\Models\AuditLogs;
 use Elabftw\Models\AuthFail;
 use Elabftw\Models\Experiments;
@@ -35,6 +34,8 @@ use Symfony\Component\HttpFoundation\Response;
 use ValueError;
 
 use function array_walk;
+use function _;
+use function ini_get;
 
 /**
  * Instance level settings and tools
@@ -45,16 +46,14 @@ $Response = new Response();
 try {
     $Response->prepare($App->Request);
 
-    if (!$App->Users->userData['is_sysadmin']) {
-        throw new IllegalActionException('Non sysadmin user tried to access sysconfig panel.');
-    }
+    $App->Users->isSysadminOrExplode();
 
     $AuthFail = new AuthFail();
     $Idps = new Idps($App->Users);
     $idpsArr = $Idps->readAllLight();
     $IdpsSources = new IdpsSources($App->Users);
     $idpsSources = $IdpsSources->readAll();
-    $teamsArr = $App->Teams->readAllComplete();
+    $teamsArr = $App->Teams->selectAll();
     $Experiments = new Experiments($App->Users);
 
     // Remote directory search
@@ -98,7 +97,6 @@ try {
         Db::getConnection()->getAttribute(PDO::ATTR_SERVER_VERSION),
     );
 
-    $elabimgVersion = getenv('ELABIMG_VERSION') ?: 'Not in Docker';
     $auditLogsArr = AuditLogs::read($App->Request->query->getInt('limit', AuditLogs::DEFAULT_LIMIT), $App->Request->query->getInt('offset'));
     array_walk($auditLogsArr, function (array &$event) {
         try {
@@ -115,7 +113,6 @@ try {
         'containersCount' => $StorageUnits->readCount(),
         'nologinUsersCount' => $AuthFail->getLockedUsersCount(),
         'lockoutDevicesCount' => $AuthFail->getLockoutDevicesCount(),
-        'elabimgVersion' => $elabimgVersion,
         'idpsArr' => $idpsArr,
         'idpsSources' => $idpsSources,
         'pageTitle' => _('Instance settings'),

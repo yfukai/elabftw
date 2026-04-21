@@ -16,9 +16,14 @@ use Elabftw\Exceptions\ImproperActionException;
 use Elabftw\Models\Users\Users;
 use Elabftw\Traits\TestsUtilsTrait;
 
+use function count;
+use function sprintf;
+
 class RevisionsTest extends \PHPUnit\Framework\TestCase
 {
     use TestsUtilsTrait;
+
+    private const int MAX_REVISIONS = 10;
 
     private Users $Users;
 
@@ -30,7 +35,7 @@ class RevisionsTest extends \PHPUnit\Framework\TestCase
     {
         $this->Users = $this->getRandomUserInTeam(1);
         $this->Experiments = $this->getFreshExperimentWithGivenUser($this->Users);
-        $this->Revisions = new Revisions($this->Experiments, 10, 100, 10);
+        $this->Revisions = new Revisions($this->Experiments, self::MAX_REVISIONS, 1, 10);
     }
 
     public function testGetApiPath(): void
@@ -64,9 +69,13 @@ class RevisionsTest extends \PHPUnit\Framework\TestCase
         $this->Revisions->patch(Action::Replace, array());
     }
 
-    public function testPrune(): void
+    // create a bunch of revisions and ensure we don't have more than max number
+    public function testMaxNumber(): void
     {
-        $this->assertEquals(0, $this->Revisions->prune());
+        for ($i = 0; $i < 12; $i++) {
+            $this->Revisions->create('wéééééééééé' . $i);
+        }
+        $this->assertSame(self::MAX_REVISIONS, count($this->Revisions->readAll()));
     }
 
     public function testDestroy(): void
